@@ -1,12 +1,12 @@
 
 // Require dependencies
 const socket     = require('socket');
-const controller = require('controller');
+const Controller = require('controller');
 
 /**
  * Build socket controller
  */
-class socketController extends controller {
+class SocketController extends Controller {
 
   /**
    * Construct socket controller class
@@ -50,4 +50,4 @@ class socketController extends controller {
  *
  * @type {socketController}
  */
-exports = module.exports = socketController;
+exports = module.exports = SocketController;
