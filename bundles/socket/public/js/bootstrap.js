@@ -1,7 +1,4 @@
 
-// Require polyfill
-require('@babel/polyfill');
-
 // Require dependencies
 const io   = require('socket.io-client');
 const uuid = require('uuid');

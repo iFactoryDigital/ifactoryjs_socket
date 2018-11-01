@@ -1,6 +1,6 @@
 {
   "name": "@edenjs/socket",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -15,5 +15,14 @@
   "bugs": {
     "url": "https://github.com/eden-js/socket/issues"
   },
-  "homepage": "https://github.com/eden-js/socket#readme"
+  "homepage": "https://github.com/eden-js/socket#readme",
+  "dependencies": {
+    "connect-redis": "^3.4.0",
+    "cookie-parser": "^1.4.3",
+    "express-session": "^1.15.6",
+    "passport.socketio": "^3.7.0",
+    "socket.io": "^2.1.1",
+    "socket.io-client": "^2.1.1",
+    "uuid": "^3.3.2"
+  }
 }
