@@ -1,10 +1,10 @@
 
 // Require dependencies
-const daemon       = require('daemon');
+const Daemon       = require('daemon');
 const session      = require('express-session');
 const passport     = require('passport.socketio');
 const socketio     = require('socket.io');
-const redisStore   = require('connect-redis')(session);
+const RedisStore   = require('connect-redis')(session);
 const cookieParser = require('cookie-parser');
 
 // Require local dependencies
@@ -20,7 +20,7 @@ const aclHelper = helper('user/acl');
  *
  * @express
  */
-class socket extends daemon {
+class SocketDaemon extends Daemon {
 
   /**
    * Construct socket daemon
@@ -72,7 +72,7 @@ class socket extends daemon {
     // Use passport auth
     this.io.use(passport.authorize({
       'key'          : config.get('session.key') || 'eden.session.id',
-      'store'        : new redisStore(config.get('redis')),
+      'store'        : new RedisStore(config.get('redis')),
       'secret'       : config.get('secret'),
       'cookieParser' : cookieParser,
       'fail'         : (data, message, critical, accept) => {
@@ -111,7 +111,7 @@ class socket extends daemon {
     this._connection(true);
 
     // Check for user
-    let User = (!socket.request.user || !socket.request.user.logged_in) ? false : socket.request.user;
+    let user = (!socket.request.user || !socket.request.user.logged_in) ? false : socket.request.user;
 
     // Set socketid
     let socketid = this.index;
@@ -123,7 +123,7 @@ class socket extends daemon {
     this.index++;
 
     // Log connection
-    this.logger.log('debug', 'client ' + socketid + ' - ' + (User ? User.get('username') : 'anonymous') + ' connected', {
+    this.logger.log('debug', 'client ' + socketid + ' - ' + (user ? user.get('username') : 'anonymous') + ' connected', {
       'class' : 'socket'
     });
 
@@ -131,14 +131,14 @@ class socket extends daemon {
     this.sockets[socketid] = socket;
 
     // Check if user on handshake
-    if (User) {
+    if (user) {
       // Create users object
-      if (!this.users[User.get('_id').toString()]) {
-        this.users[User.get('_id').toString()] = [];
+      if (!this.users[user.get('_id').toString()]) {
+        this.users[user.get('_id').toString()] = [];
       }
 
       // Add i to users object
-      this.users[User.get('_id').toString()].push(socketid);
+      this.users[user.get('_id').toString()].push(socketid);
     }
 
     // Add session to socket id
@@ -154,14 +154,14 @@ class socket extends daemon {
     this.eden.emit('socket.connect', {
       'id'        : socketid,
       'key'       : session,
-      'user'      : User,
+      'user'      : user,
       'sessionID' : session
     });
 
     // Disconnect socket
     socket.on('disconnect', () => {
       // Log disconnected
-      this.logger.log('debug', 'client ' + socketid + ' - ' + (User ? User.get('username') : 'anonymous') + ' disconnected', {
+      this.logger.log('debug', 'client ' + socketid + ' - ' + (user ? user.get('username') : 'anonymous') + ' disconnected', {
         'class' : 'socket'
       });
 
@@ -172,17 +172,17 @@ class socket extends daemon {
       let index = 0;
 
       // Remove socket id from user
-      if (User && this.users[User.get('_id').toString()]) {
+      if (user && this.users[user.get('_id').toString()]) {
         // Get index
-        index = this.users[User.get('_id').toString()].indexOf(socketid);
+        index = this.users[user.get('_id').toString()].indexOf(socketid);
 
         // Remove user from sockets
         if (index > -1) {
-          this.users[User.get('_id').toString()].splice(index, 1);
+          this.users[user.get('_id').toString()].splice(index, 1);
         }
 
         // Check if length
-        if (!this.users[User.get('_id').toString()].length) delete this.users[User.get('_id').toString()];
+        if (!this.users[user.get('_id').toString()].length) delete this.users[user.get('_id').toString()];
       }
 
       // Remove from sessions
@@ -206,13 +206,13 @@ class socket extends daemon {
     // Create functions for cached config
     for (let i = 0; i < sockets.length; i++) {
       // Create listener
-      this._endpoint(sockets[i], socket, User);
+      this._endpoint(sockets[i], socket, user);
     }
 
     // On call
     socket.on('eden.call', (data) => {
       // Call data
-      this._call(data, socket, User);
+      this._call(data, socket, user);
     });
   }
 
@@ -245,13 +245,13 @@ class socket extends daemon {
     if (this.users[data.to]) {
       for (let i = 0; i < this.users[data.to].length; i++) {
         // Set socket
-        let Socket = this.sockets[this.users[data.to][i]];
+        let socket = this.sockets[this.users[data.to][i]];
 
         // Check if socket
-        if (!Socket) continue;
+        if (!socket) continue;
 
         // Emit to socket
-        Socket.emit(data.type, ...data.args);
+        socket.emit(data.type, ...data.args);
 
         // Emit to eden
         this.eden.emit('socket.user.sent', ...data.args);
@@ -274,13 +274,13 @@ class socket extends daemon {
     // Loop sessions
     for (let i = 0; i < this.sessions[data.session].length; i++) {
       // Set socket
-      let Socket = this.sockets[this.sessions[data.session][i]];
+      let socket = this.sockets[this.sessions[data.session][i]];
 
       // Check socket exists
-      if (!Socket) continue;
+      if (!socket) continue;
 
       // Emit to socket
-      Socket.emit(data.type, ...data.args);
+      socket.emit(data.type, ...data.args);
 
       // Emit to eden
       this.eden.emit('socket.session.sent', ...data.args);
@@ -292,11 +292,11 @@ class socket extends daemon {
    *
    * @param  {Object} data
    * @param  {socket} socket
-   * @param  {user}   User
+   * @param  {User}   user
    */
-  async _call (data, socket, User) {
+  async _call (data, socket, user) {
     // Reload user
-    if (User) await User.refresh();
+    if (user) await user.refresh();
 
     // Loop endpoints
     let matched = calls.filter((call) => {
@@ -310,7 +310,7 @@ class socket extends daemon {
       let call = matched[i];
 
       // Check if can
-      if (!await aclHelper.validate(User, call.acl)) continue;
+      if (!await aclHelper.validate(user, call.acl)) continue;
 
       // Get controller
       let controller = await this.eden.controller(call.class);
@@ -318,7 +318,7 @@ class socket extends daemon {
       // Set opts
       let opts = {
         'args'      : data.args,
-        'user'      : User,
+        'user'      : user,
         'call'      : data.name,
         'socket'    : socket,
         'sessionID' : socket.request.cookie[config.get('session.key') || 'eden.session.id']
@@ -340,16 +340,16 @@ class socket extends daemon {
    *
    * @param  {Object} endpoint
    * @param  {socket} socket
-   * @param  {user}   User
+   * @param  {User}   user
    */
-  _endpoint (endpoint, socket, User) {
+  _endpoint (endpoint, socket, user) {
     // Create socket listener
     socket.on(endpoint.name, async (...args) => {
       // Reload user
-      if (User) await User.refresh();
+      if (user) await user.refresh();
 
       // Check if can
-      if (!await aclHelper.validate(User, endpoint.acl)) return;
+      if (!await aclHelper.validate(user, endpoint.acl)) return;
 
       // Get controller
       let controller = await this.eden.controller(endpoint.class);
@@ -357,7 +357,7 @@ class socket extends daemon {
       // Set opts
       let opts = {
         'args'      : args,
-        'user'      : User,
+        'user'      : user,
         'socket'    : socket,
         'sessionID' : socket.request.cookie[config.get('session.key') || 'eden.session.id']
       };
@@ -401,4 +401,4 @@ class socket extends daemon {
  *
  * @type {socket}
  */
-exports = module.exports = socket;
+exports = module.exports = SocketDaemon;
