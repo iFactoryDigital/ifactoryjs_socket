@@ -21,11 +21,10 @@ const aclHelper = helper('user/acl');
  * @express
  */
 class SocketDaemon extends Daemon {
-
   /**
    * Construct socket daemon
    */
-  constructor () {
+  constructor() {
     // Run super
     super(...arguments);
 
@@ -33,23 +32,23 @@ class SocketDaemon extends Daemon {
     if (!this.eden.express) return;
 
     // Bind variables
-    this.io       = false;
-    this.index    = 0;
-    this.users    = {};
-    this.sockets  = {};
-    this.threads  = {};
+    this.io = false;
+    this.index = 0;
+    this.users = {};
+    this.sockets = {};
+    this.threads = {};
     this.sessions = {};
 
     // Bind methods
-    this.build  = this.build.bind(this);
+    this.build = this.build.bind(this);
     this.socket = this.socket.bind(this);
 
     // Bind private methods
-    this._call       = this._call.bind(this);
-    this._emit       = this._emit.bind(this);
-    this._user       = this._user.bind(this);
-    this._session    = this._session.bind(this);
-    this._endpoint   = this._endpoint.bind(this);
+    this._call = this._call.bind(this);
+    this._emit = this._emit.bind(this);
+    this._user = this._user.bind(this);
+    this._session = this._session.bind(this);
+    this._endpoint = this._endpoint.bind(this);
     this._connection = this._connection.bind(this);
 
     // Build
@@ -59,30 +58,30 @@ class SocketDaemon extends Daemon {
   /**
    * Build chat daemon
    */
-  build () {
+  build() {
     // Set io
     this.io = socketio(this.eden.router._server);
 
     // Setup redis conn
-    let conn = config.get('redis') || {};
+    const conn = config.get('redis') || {};
 
     // Add key
-    conn.key = config.get('domain') + '.socket';
+    conn.key = `${config.get('domain')}.socket`;
 
     // Use passport auth
     this.io.use(passport.authorize({
-      'key'          : config.get('session.key') || 'eden.session.id',
-      'store'        : new RedisStore(config.get('redis')),
-      'secret'       : config.get('secret'),
-      'cookieParser' : cookieParser,
-      'fail'         : (data, message, critical, accept) => {
+      key          : config.get('session.key') || 'eden.session.id',
+      store        : new RedisStore(config.get('redis')),
+      secret       : config.get('secret'),
+      cookieParser,
+      fail         : (data, message, critical, accept) => {
         // Accept connection
         accept(null, false);
       },
-      'success' : (data, accept) => {
+      success : (data, accept) => {
         // Accept
         accept(null, true);
-      }
+      },
     }));
 
     // Listen for connection
@@ -106,25 +105,25 @@ class SocketDaemon extends Daemon {
    *
    * @param {socket} socket
    */
-  socket (socket) {
+  socket(socket) {
     // Publish connections
     this._connection(true);
 
     // Check for user
-    let user = (!socket.request.user || !socket.request.user.logged_in) ? false : socket.request.user;
+    const user = (!socket.request.user || !socket.request.user.logged_in) ? false : socket.request.user;
 
     // Set socketid
-    let socketid = this.index;
+    const socketid = this.index;
 
     // Set session id
-    let session = socket.request.cookie[config.get('session.key') || 'eden.session.id'];
+    const session = socket.request.cookie[config.get('session.key') || 'eden.session.id'];
 
     // Add to index
     this.index++;
 
     // Log connection
-    this.logger.log('debug', 'client ' + socketid + ' - ' + (user ? user.get('username') : 'anonymous') + ' connected', {
-      'class' : 'socket'
+    this.logger.log('debug', `client ${socketid} - ${user ? user.get('username') : 'anonymous'} connected`, {
+      class : 'socket',
     });
 
     // Add socket to sockets object
@@ -152,17 +151,17 @@ class SocketDaemon extends Daemon {
 
     // Send connection information
     this.eden.emit('socket.connect', {
-      'id'        : socketid,
-      'key'       : session,
-      'user'      : user,
-      'sessionID' : session
+      id        : socketid,
+      key       : session,
+      user,
+      sessionID : session,
     });
 
     // Disconnect socket
     socket.on('disconnect', () => {
       // Log disconnected
-      this.logger.log('debug', 'client ' + socketid + ' - ' + (user ? user.get('username') : 'anonymous') + ' disconnected', {
-        'class' : 'socket'
+      this.logger.log('debug', `client ${socketid} - ${user ? user.get('username') : 'anonymous'} disconnected`, {
+        class : 'socket',
       });
 
       // Publish connections
@@ -221,7 +220,7 @@ class SocketDaemon extends Daemon {
    *
    * @param {Object} data
    */
-  _emit (data) {
+  _emit(data) {
     // Check if room
     if (data.room) {
       // Emit to room
@@ -237,7 +236,7 @@ class SocketDaemon extends Daemon {
    *
    * @param {Object} data
    */
-  _user (data) {
+  _user(data) {
     // Check data.to
     if (!data.to) return;
 
@@ -245,7 +244,7 @@ class SocketDaemon extends Daemon {
     if (this.users[data.to]) {
       for (let i = 0; i < this.users[data.to].length; i++) {
         // Set socket
-        let socket = this.sockets[this.users[data.to][i]];
+        const socket = this.sockets[this.users[data.to][i]];
 
         // Check if socket
         if (!socket) continue;
@@ -264,9 +263,9 @@ class SocketDaemon extends Daemon {
    *
    * @param {Object} data
    */
-  _session (data) {
+  _session(data) {
     // Check data.to
-    if (!data.session)  return;
+    if (!data.session) return;
 
     // Check session exists
     if (!this.sessions[data.session]) return;
@@ -274,7 +273,7 @@ class SocketDaemon extends Daemon {
     // Loop sessions
     for (let i = 0; i < this.sessions[data.session].length; i++) {
       // Set socket
-      let socket = this.sockets[this.sessions[data.session][i]];
+      const socket = this.sockets[this.sessions[data.session][i]];
 
       // Check socket exists
       if (!socket) continue;
@@ -294,12 +293,12 @@ class SocketDaemon extends Daemon {
    * @param  {socket} socket
    * @param  {User}   user
    */
-  async _call (data, socket, user) {
+  async _call(data, socket, user) {
     // Reload user
     if (user) await user.refresh();
 
     // Loop endpoints
-    let matched = calls.filter((call) => {
+    const matched = calls.filter((call) => {
       // Remove call
       return data.name === call.name;
     });
@@ -307,28 +306,28 @@ class SocketDaemon extends Daemon {
     // Loop matched
     for (let i = 0; i < matched.length; i++) {
       // Get call
-      let call = matched[i];
+      const call = matched[i];
 
       // Check if can
       if (!await aclHelper.validate(user, call.acl)) continue;
 
       // Get controller
-      let controller = await this.eden.controller(call.class);
+      const controller = await this.eden.controller(call.class);
 
       // Set opts
-      let opts = {
-        'args'      : data.args,
-        'user'      : user,
-        'call'      : data.name,
-        'socket'    : socket,
-        'sessionID' : socket.request.cookie[config.get('session.key') || 'eden.session.id']
+      const opts = {
+        args      : data.args,
+        user,
+        call      : data.name,
+        socket,
+        sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
       };
 
       // Hook opts
       await this.eden.hook('socket.call.opts', opts);
 
       // Run endpoint
-      let response = await controller[call.fn].apply(controller, [...data.args, opts]);
+      const response = await controller[call.fn].apply(controller, [...data.args, opts]);
 
       // Return response
       socket.emit(data.id, response);
@@ -342,7 +341,7 @@ class SocketDaemon extends Daemon {
    * @param  {socket} socket
    * @param  {User}   user
    */
-  _endpoint (endpoint, socket, user) {
+  _endpoint(endpoint, socket, user) {
     // Create socket listener
     socket.on(endpoint.name, async (...args) => {
       // Reload user
@@ -352,14 +351,14 @@ class SocketDaemon extends Daemon {
       if (!await aclHelper.validate(user, endpoint.acl)) return;
 
       // Get controller
-      let controller = await this.eden.controller(endpoint.class);
+      const controller = await this.eden.controller(endpoint.class);
 
       // Set opts
-      let opts = {
-        'args'      : args,
-        'user'      : user,
-        'socket'    : socket,
-        'sessionID' : socket.request.cookie[config.get('session.key') || 'eden.session.id']
+      const opts = {
+        args,
+        user,
+        socket,
+        sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
       };
 
       // Hook opts
@@ -377,7 +376,7 @@ class SocketDaemon extends Daemon {
    *
    * @private
    */
-  async _connection (add) {
+  async _connection(add) {
     // Publish to eden
     let connections = await this.eden.get('socket.connections');
 

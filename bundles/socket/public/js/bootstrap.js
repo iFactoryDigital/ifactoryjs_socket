@@ -10,11 +10,10 @@ const store = require('default/public/js/store');
  * Build socket class
  */
 class socket {
-
   /**
    * Construct socket class
    */
-  constructor () {
+  constructor() {
     // Set variables
     this.user = window.eden.user ? window.eden.user.id : false;
 
@@ -25,8 +24,8 @@ class socket {
     this.socket = io.connect(store.get('config').socket.url, store.get('config').socket.params);
 
     // Bind methods
-    this.on   = this.socket.on.bind(this.socket);
-    this.off  = this.socket.off.bind(this.socket);
+    this.on = this.socket.on.bind(this.socket);
+    this.off = this.socket.off.bind(this.socket);
     this.emit = this.socket.emit.bind(this.socket);
     this.once = this.socket.once.bind(this.socket);
 
@@ -45,22 +44,22 @@ class socket {
    *
    * @return {Promise}
    */
-  async call (name, ...args) {
+  async call(name, ...args) {
     // Let id
-    let id = uuid();
+    const id = uuid();
 
     // Create emission
-    let emission = {
-      'id'   : id,
-      'args' : args,
-      'name' : name
+    const emission = {
+      id,
+      args,
+      name,
     };
 
     // Emit to socket
     this.emit('eden.call', emission);
 
     // Await one response
-    let result = await new Promise((resolve) => {
+    const result = await new Promise((resolve) => {
       // On message
       this.once(id, resolve);
     });
@@ -76,7 +75,7 @@ class socket {
    *
    * @return {*}
    */
-  _user (user) {
+  _user(user) {
     // Check if logging out
     if (user === false && this.user) {
       // Logout
