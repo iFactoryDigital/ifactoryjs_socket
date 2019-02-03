@@ -1,7 +1,19 @@
 {
   "name": "@edenjs/socket",
-  "version": "1.0.3",
   "description": "",
+  "version": "1.0.3",
+  "dependencies": {
+    "connect-redis": "^3.4.0",
+    "cookie-parser": "^1.4.3",
+    "express-session": "^1.15.6",
+    "passport.socketio": "^3.7.0",
+    "socket.io": "^2.2.0",
+    "socket.io-client": "^2.2.0",
+    "uuid": "^3.3.2"
+  },
+  "engines": {
+    "node": ">= 8.0.0"
+  },
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -16,13 +28,12 @@
     "url": "https://github.com/eden-js/socket/issues"
   },
   "homepage": "https://github.com/eden-js/socket#readme",
-  "dependencies": {
-    "connect-redis": "^3.4.0",
-    "cookie-parser": "^1.4.3",
-    "express-session": "^1.15.6",
-    "passport.socketio": "^3.7.0",
-    "socket.io": "^2.2.0",
-    "socket.io-client": "^2.2.0",
-    "uuid": "^3.3.2"
+  "devDependencies": {
+    "eslint": "^5.13.0",
+    "@edenjs/eslint-config-eden": "^2.0.14",
+    "eslint-config-airbnb": "^17.1.0",
+    "eslint-plugin-import": "^2.16.0",
+    "eslint-plugin-jsx-a11y": "^6.2.0",
+    "eslint-plugin-react": "^7.12.4"
   }
 }
