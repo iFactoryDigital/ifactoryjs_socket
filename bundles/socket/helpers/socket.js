@@ -6,18 +6,17 @@ const helper = require('helper');
  * Build socket helper class
  */
 class socket extends helper {
-
   /**
    * Construct socket helper class
    */
-  constructor () {
+  constructor() {
     // Run super
     super();
 
     // Bind methods
-    this.room    = this.room.bind(this);
-    this.user    = this.user.bind(this);
-    this.emit    = this.emit.bind(this);
+    this.room = this.room.bind(this);
+    this.user = this.user.bind(this);
+    this.emit = this.emit.bind(this);
     this.session = this.session.bind(this);
   }
 
@@ -28,12 +27,12 @@ class socket extends helper {
    * @param  {String}  type
    * @param  {*}       args
    */
-  room (name, type, ...args) {
+  room(name, type, ...args) {
     // Emit to socket
     this.eden.emit('socket.room', {
-      'room' : name,
-      'type' : type,
-      'args' : args
+      room : name,
+      type,
+      args,
     }, true);
   }
 
@@ -44,12 +43,12 @@ class socket extends helper {
    * @param  {String}  type
    * @param  {*}       data
    */
-  user (User, type, ...args) {
+  user(User, type, ...args) {
     // Emit to socket
     this.eden.emit('socket.user', {
-      'to'   : (User ? User.get('_id').toString() : true),
-      'type' : type,
-      'args' : args
+      to   : (User ? User.get('_id').toString() : true),
+      type,
+      args,
     }, true);
   }
 
@@ -60,11 +59,11 @@ class socket extends helper {
    * @param  {*}       data
    * @param  {user}    User
    */
-  emit (type, ...args) {
+  emit(type, ...args) {
     // Emit to socket
     this.eden.emit('socket.emit', {
-      'type' : type,
-      'args' : args
+      type,
+      args,
     }, true);
   }
 
@@ -75,12 +74,12 @@ class socket extends helper {
    * @param {String} type
    * @param {Object} data
    */
-  session (session, type, ...args) {
+  session(session, type, ...args) {
     // Emit to socket
     this.eden.emit('socket.session', {
-      'args'    : args,
-      'type'    : type,
-      'session' : session
+      args,
+      type,
+      session,
     }, true);
   }
 }

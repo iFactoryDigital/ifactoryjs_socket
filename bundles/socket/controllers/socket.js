@@ -7,11 +7,10 @@ const Controller = require('controller');
  * Build socket controller
  */
 class SocketController extends Controller {
-
   /**
    * Construct socket controller class
    */
-  constructor () {
+  constructor() {
     // Run super
     super();
 
@@ -29,15 +28,14 @@ class SocketController extends Controller {
    * @param  {response} res Express response
    * @param  {function} next Next callback
    */
-  middleware (req, res, next) {
+  middleware(req, res, next) {
     // Create alert function
     req.socketEmit = (type, data) => {
       // Emit to user
       if (req.user) {
         return socket.user(req.user, type, data);
-      } else {
-        return socket.session(req.sessionID, type, data);
       }
+      return socket.session(req.sessionID, type, data);
     };
 
     // Run next
