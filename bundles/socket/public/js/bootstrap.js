@@ -9,19 +9,28 @@ const store = require('default/public/js/store');
 /**
  * Build socket class
  */
-class socket {
+class SocketStore {
   /**
    * Construct socket class
    */
   constructor() {
     // Set variables
-    this.user = window.eden.user ? window.eden.user.id : false;
+    this.__userID = store.get('user') && store.get('user').get ? store.get('user').get('id') : (store.get('user') || {}).id;
 
     // Bind private methods
-    this._user = this._user.bind(this);
+    this.onUser = this.onUser.bind(this);
 
     // Run socket
     this.socket = io.connect(store.get('config').socket.url, store.get('config').socket.params);
+
+    // socket on
+    this.socket.on('connect', () => {
+      // true
+      this.connected = true;
+    }).on('disconnect', () => {
+      // false
+      this.connected = false;
+    });
 
     // Bind methods
     this.on = this.socket.on.bind(this.socket);
@@ -30,10 +39,10 @@ class socket {
     this.once = this.socket.once.bind(this.socket);
 
     // Listen to route
-    this.on('user', this._user);
+    this.on('user', this.onUser);
 
     // Store on user
-    store.on('user', this._user);
+    store.on('user', this.onUser);
   }
 
   /**
@@ -75,22 +84,13 @@ class socket {
    *
    * @return {*}
    */
-  _user(user) {
-    // Check if logging out
-    if (user === false && this.user) {
-      // Logout
-      this.user = false;
+  onUser(user) {
+    // check user id
+    if ((!user && this.__userID) || (user.get ? user.get('id') : user.id) !== this.__userID) {
+      // set user id
+      this.__userID = user ? (user.get ? user.get('id') : user.id) : null;
 
-      // Reconnect
-      return this.socket.disconnect() && this.socket.connect();
-    }
-
-    // Check if logging out
-    if (user && (!this.user || this.user !== user.id)) {
-      // Logout
-      this.user = user.id;
-
-      // Reconnect
+      // reset connection
       return this.socket.disconnect() && this.socket.connect();
     }
   }
@@ -99,6 +99,6 @@ class socket {
 /**
  * Export built socket class
  *
- * @type {socket}
+ * @type {SocketStore}
  */
-exports = module.exports = window.eden.socket = new socket();
+exports = module.exports = window.eden.socket = new SocketStore();
