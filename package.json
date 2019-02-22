@@ -1,7 +1,7 @@
 {
   "name": "@edenjs/socket",
   "description": "",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "dependencies": {
     "connect-redis": "^3.4.0",
     "cookie-parser": "^1.4.3",
