@@ -18,8 +18,21 @@ class SocketStore {
     this.__userID = store.get('user') && store.get('user').get ? store.get('user').get('id') : (store.get('user') || {}).id;
 
     // Bind private methods
-    this.onUser = this.onUser.bind(this);
+    this.call = this.call.bind(this);
+    this.user = this.user.bind(this);
+    this.build = this.build.bind(this);
+    this.route = this.route.bind(this);
 
+    // set building
+    this.building = this.build();
+  }
+
+  /**
+   * build socket store
+   *
+   * @return {Promise}
+   */
+  async build() {
     // Run socket
     this.socket = io.connect(store.get('config').socket.url, store.get('config').socket.params);
 
@@ -38,11 +51,20 @@ class SocketStore {
     this.emit = this.socket.emit.bind(this.socket);
     this.once = this.socket.once.bind(this.socket);
 
+    // Pre user
+    store.pre('set', (data) => {
+      // Check key
+      if (data.key !== 'socket') return;
+
+      // Set val
+      data.val = this;
+    });
+
     // Listen to route
-    this.on('user', this.onUser);
+    this.on('user', this.user);
 
     // Store on user
-    store.on('user', this.onUser);
+    store.on('user', this.user);
   }
 
   /**
@@ -78,13 +100,45 @@ class SocketStore {
   }
 
   /**
+   * Calls name and data
+   *
+   * @param  {String} route
+   * @param  {Object} opts
+   *
+   * @return {Promise}
+   */
+  async route(route, opts) {
+    // Let id
+    const id = uuid();
+
+    // Create emission
+    const emission = {
+      id,
+      opts,
+      route,
+    };
+
+    // Emit to socket
+    this.emit('eden.route', emission);
+
+    // Await one response
+    const result = await new Promise((resolve) => {
+      // On message
+      this.once(id, resolve);
+    });
+
+    // Return result
+    return result;
+  }
+
+  /**
    * Listen to state change
    *
    * @param {Object} user
    *
    * @return {*}
    */
-  onUser(user) {
+  user(user) {
     // check user id
     if ((!user && this.__userID) || (user.get ? user.get('id') : user.id) !== this.__userID) {
       // set user id

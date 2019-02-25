@@ -1,5 +1,8 @@
 
 // Require dependencies
+const uuid         = require('uuid');
+const fetch        = require('node-fetch');
+const config       = require('config');
 const Daemon       = require('daemon');
 const session      = require('express-session');
 const passport     = require('passport.socketio');
@@ -7,10 +10,8 @@ const socketio     = require('socket.io');
 const RedisStore   = require('connect-redis')(session);
 const cookieParser = require('cookie-parser');
 
-// Require local dependencies
-const calls   = require('cache/calls.json');
-const config  = require('config');
-const sockets = require('cache/sockets.json');
+// Require cache dependencies
+const calls = cache('calls');
 
 // Require helpers
 const aclHelper = helper('user/acl');
@@ -26,41 +27,53 @@ class SocketDaemon extends Daemon {
    */
   constructor() {
     // Run super
-    super(...arguments);
+    super();
 
     // Don't run on main thread if no server is applicable
     if (!this.eden.express) return;
 
     // Bind variables
-    this.io = false;
-    this.index = 0;
-    this.users = {};
-    this.sockets = {};
-    this.threads = {};
-    this.sessions = {};
+    this.__socketIO = false;
+    this.__connections = {
+      users    : new Map(),
+      sockets  : new Map(),
+      sessions : new Map(),
+    };
 
     // Bind methods
     this.build = this.build.bind(this);
-    this.socket = this.socket.bind(this);
+
+    // on connect
+    this.onConnect = this.onConnect.bind(this);
+    this.onDisconnect = this.onDisconnect.bind(this);
+
+    // count methods
+    this.countConnections = this.countConnections.bind(this);
 
     // Bind private methods
-    this._call = this._call.bind(this);
-    this._emit = this._emit.bind(this);
-    this._user = this._user.bind(this);
-    this._session = this._session.bind(this);
-    this._endpoint = this._endpoint.bind(this);
-    this._connection = this._connection.bind(this);
+    this.call = this.call.bind(this);
+    this.emit = this.emit.bind(this);
+    this.user = this.user.bind(this);
+    this.route = this.route.bind(this);
+    this.session = this.session.bind(this);
 
     // Build
     if (config.get('socket')) this.build();
   }
+
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // BUILD METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
 
   /**
    * Build chat daemon
    */
   build() {
     // Set io
-    this.io = socketio(this.eden.router._server);
+    this.__socketIO = socketio(this.eden.router._server);
 
     // Setup redis conn
     const conn = config.get('redis') || {};
@@ -69,12 +82,11 @@ class SocketDaemon extends Daemon {
     conn.key = `${config.get('domain')}.socket`;
 
     // Use passport auth
-    this.io.use(passport.authorize({
-      key          : config.get('session.key') || 'eden.session.id',
-      store        : new RedisStore(config.get('redis')),
-      secret       : config.get('secret'),
-      cookieParser,
-      fail         : (data, message, critical, accept) => {
+    this.__socketIO.use(passport.authorize({
+      key    : config.get('session.key') || 'eden.session.id',
+      store  : new RedisStore(config.get('redis')),
+      secret : config.get('secret'),
+      fail   : (data, message, critical, accept) => {
         // Accept connection
         accept(null, false);
       },
@@ -82,207 +94,190 @@ class SocketDaemon extends Daemon {
         // Accept
         accept(null, true);
       },
+
+      cookieParser,
     }));
 
     // Listen for connection
-    this.io.on('connection', this.socket);
+    this.__socketIO.on('connection', this.onConnect);
 
     // Listen for global event for emit
-    this.eden.on('socket.emit', this._emit, true);
+    this.eden.on('socket.emit', this.emit, true);
 
     // Listen for global event for room
-    this.eden.on('socket.room', this._emit, true);
+    this.eden.on('socket.room', this.emit, true);
 
     // Listen for global event for user
-    this.eden.on('socket.user', this._user, true);
+    this.eden.on('socket.user', this.user, true);
 
     // Listen for global event for key
-    this.eden.on('socket.session', this._session, true);
+    this.eden.on('socket.session', this.session, true);
   }
+
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // CONNECT METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
 
   /**
    * Set socket object
    *
    * @param {socket} socket
    */
-  socket(socket) {
-    // Publish connections
-    this._connection(true);
+  async onConnect(socket) {
+    // on socket disconnect
+    socket.on('disconnect', () => this.onDisconnect(socket));
 
-    // Check for user
-    const user = (!socket.request.user || !socket.request.user.logged_in) ? false : socket.request.user;
+    // check user
+    const user = (!(socket.request.user || {}).logged_in) ? false : socket.request.user;
 
-    // Set socketid
-    const socketid = this.index;
+    // set ids
+    const IDs = {
+      userID    : user ? user.get('_id').toString() : null,
+      socketID  : uuid(),
+      sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
+    };
 
-    // Set session id
-    const session = socket.request.cookie[config.get('session.key') || 'eden.session.id'];
-
-    // Add to index
-    this.index++;
-
-    // Log connection
-    this.logger.log('debug', `client ${socketid} - ${user ? user.get('username') : 'anonymous'} connected`, {
+    // log connected
+    this.logger.log('debug', `client ${IDs.socketID} - ${user ? await user.name() : 'anonymous'} connected`, {
       class : 'socket',
     });
 
-    // Add socket to sockets object
-    this.sockets[socketid] = socket;
+    // set socket to map
+    this.__connections.sockets.set(IDs.socketID, socket);
 
-    // Check if user on handshake
-    if (user) {
-      // Create users object
-      if (!this.users[user.get('_id').toString()]) {
-        this.users[user.get('_id').toString()] = [];
-      }
+    // loop for sockets
+    ['user', 'session'].forEach((key) => {
+      // check ids
+      if (!IDs[`${key}ID`]) return;
 
-      // Add i to users object
-      this.users[user.get('_id').toString()].push(socketid);
-    }
+      // check has
+      if (!this.__connections[`${key}s`].has(IDs[`${key}ID`])) this.__connections[`${key}s`].set(IDs[`${key}ID`], new Set());
 
-    // Add session to socket id
-    if (!this.sessions[session]) {
-      // Create array
-      this.sessions[session] = [];
-    }
-
-    // Add socketid to sessions
-    this.sessions[session].push(socketid);
+      // push
+      this.__connections[`${key}s`].get(IDs[`${key}ID`]).add(IDs.socketID);
+    });
 
     // Send connection information
     this.eden.emit('socket.connect', {
-      id        : socketid,
-      key       : session,
-      user,
-      sessionID : session,
-    });
+      ...IDs,
 
-    // Disconnect socket
-    socket.on('disconnect', () => {
-      // Log disconnected
-      this.logger.log('debug', `client ${socketid} - ${user ? user.get('username') : 'anonymous'} disconnected`, {
-        class : 'socket',
-      });
-
-      // Publish connections
-      this._connection(false);
-
-      // Set index
-      let index = 0;
-
-      // Remove socket id from user
-      if (user && this.users[user.get('_id').toString()]) {
-        // Get index
-        index = this.users[user.get('_id').toString()].indexOf(socketid);
-
-        // Remove user from sockets
-        if (index > -1) {
-          this.users[user.get('_id').toString()].splice(index, 1);
-        }
-
-        // Check if length
-        if (!this.users[user.get('_id').toString()].length) delete this.users[user.get('_id').toString()];
-      }
-
-      // Remove from sessions
-      if (this.sessions[session]) {
-        // Get index
-        index = this.sessions[session].indexOf(socketid);
-
-        // Remove session from sessions
-        if (index > -1) {
-          this.sessions[session].splice(index, 1);
-        }
-
-        // Check if length
-        if (!this.sessions[session].length) delete this.sessions[session];
-      }
-
-      // Delete socket
-      delete this.sockets[socketid];
-    });
-
-    // Create functions for cached config
-    for (let i = 0; i < sockets.length; i++) {
-      // Create listener
-      this._endpoint(sockets[i], socket, user);
-    }
+      id  : IDs.socketID,
+      key : IDs.sessionID,
+    }, true);
 
     // On call
     socket.on('eden.call', (data) => {
       // Call data
-      this._call(data, socket, user);
+      this.call(data, socket, user);
     });
+
+    // On call
+    socket.on('eden.route', (route) => {
+      // Call data
+      this.route(route, socket, user);
+    });
+
+    // add connection
+    this.countConnections();
   }
+
+  /**
+   * on disconnect
+   *
+   * @param  {Socket}  socket
+   *
+   * @return {Promise}
+   */
+  async onDisconnect(socket) {
+    // check user
+    const user = (!(socket.request.user || {}).logged_in) ? false : socket.request.user;
+
+    // set ids
+    const IDs = {
+      userID    : user ? user.get('_id').toString() : null,
+      socketID  : uuid(),
+      sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
+    };
+
+    // Log disconnected
+    this.logger.log('debug', `client ${IDs.socketID} - ${user ? await user.name() : 'anonymous'} disconnected`, {
+      class : 'socket',
+    });
+
+    // selete socket
+    this.__connections.sockets.delete(IDs.socketID);
+
+    // loop for sockets
+    ['user', 'session'].forEach((key) => {
+      // check ids
+      if (!IDs[`${key}ID`]) return;
+
+      // remove
+      this.__connections[`${key}s`].get(IDs[`${key}ID`]).delete(IDs.socketID);
+
+      // delete if empty
+      if (!this.__connections[`${key}s`].get(IDs[`${key}ID`]).size) this.__connections[`${key}s`].delete(IDs[`${key}ID`]);
+    });
+
+    // Send connection information
+    this.eden.emit('socket.disconnect', {
+      ...IDs,
+
+      id  : IDs.socketID,
+      key : IDs.sessionID,
+    }, true);
+
+    // add connection
+    this.countConnections();
+  }
+
+  /**
+   * Publishes socket connection count
+   *
+   * @param {Integer} add
+   *
+   * @private
+   */
+  async countConnections() {
+    // get connections
+    const connections = await this.eden.get('socket.connections') || {};
+
+    // add connections
+    connections[`${this.eden.express ? 'express' : 'compute'}.${this.eden.id}`] = this.__connections.sockets.size;
+
+    // Publish to eden
+    await this.eden.set('socket.connections', connections);
+
+    // emit
+    this.eden.emit('socket.connections', Object.values(connections).reduce((accum, amount) => {
+      // return accum
+      return accum + amount;
+    }, 0), true);
+  }
+
+
+  // ////////////////////////////////////////////////////////////////////////////
+  //
+  // CRUD METHODS
+  //
+  // ////////////////////////////////////////////////////////////////////////////
 
   /**
    * Emit to socket funciton
    *
    * @param {Object} data
    */
-  _emit(data) {
+  emit(data) {
     // Check if room
     if (data.room) {
       // Emit to room
-      this.io.to(data.room).emit(data.type, ...data.args);
+      this.__socketIO.to(data.room).emit(data.type, ...data.args);
     } else {
       // Emit to everyone
-      this.io.emit(data.type, ...data.args);
-    }
-  }
-
-  /**
-   * Emit to user
-   *
-   * @param {Object} data
-   */
-  _user(data) {
-    // Check data.to
-    if (!data.to) return;
-
-    // Loop all user socket connections
-    if (this.users[data.to]) {
-      for (let i = 0; i < this.users[data.to].length; i++) {
-        // Set socket
-        const socket = this.sockets[this.users[data.to][i]];
-
-        // Check if socket
-        if (!socket) continue;
-
-        // Emit to socket
-        socket.emit(data.type, ...data.args);
-
-        // Emit to eden
-        this.eden.emit('socket.user.sent', ...data.args);
-      }
-    }
-  }
-
-  /**
-   * Emit to user
-   *
-   * @param {Object} data
-   */
-  _session(data) {
-    // Check data.to
-    if (!data.session) return;
-
-    // Check session exists
-    if (!this.sessions[data.session]) return;
-
-    // Loop sessions
-    for (let i = 0; i < this.sessions[data.session].length; i++) {
-      // Set socket
-      const socket = this.sockets[this.sessions[data.session][i]];
-
-      // Check socket exists
-      if (!socket) continue;
-
-      // Emit to socket
-      socket.emit(data.type, ...data.args);
-
-      // Emit to eden
-      this.eden.emit('socket.session.sent', ...data.args);
+      this.__socketIO.emit(data.type, ...data.args);
     }
   }
 
@@ -293,7 +288,7 @@ class SocketDaemon extends Daemon {
    * @param  {socket} socket
    * @param  {User}   user
    */
-  async _call(data, socket, user) {
+  async call(data, socket, user) {
     // Reload user
     if (user) await user.refresh();
 
@@ -304,22 +299,20 @@ class SocketDaemon extends Daemon {
     });
 
     // Loop matched
-    for (let i = 0; i < matched.length; i++) {
-      // Get call
-      const call = matched[i];
+    matched.forEach(async (call) => {
+      // check ACL
+      if (!await aclHelper.validate(user, call.acl)) return;
 
-      // Check if can
-      if (!await aclHelper.validate(user, call.acl)) continue;
-
-      // Get controller
+      // get controller
       const controller = await this.eden.controller(call.class);
 
       // Set opts
       const opts = {
-        args      : data.args,
         user,
-        call      : data.name,
         socket,
+
+        args      : data.args,
+        call      : data.name,
         sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
       };
 
@@ -331,67 +324,80 @@ class SocketDaemon extends Daemon {
 
       // Return response
       socket.emit(data.id, response);
-    }
+    });
   }
 
   /**
    * Creates route listener
    *
-   * @param  {Object} endpoint
+   * @param  {Object} data
    * @param  {socket} socket
    * @param  {User}   user
    */
-  _endpoint(endpoint, socket, user) {
-    // Create socket listener
-    socket.on(endpoint.name, async (...args) => {
-      // Reload user
-      if (user) await user.refresh();
+  async route(data, socket, user) {
+    // Reload user
+    if (user) await user.refresh();
 
-      // Check if can
-      if (!await aclHelper.validate(user, endpoint.acl)) return;
+    // get headers
+    const res = await fetch(`http://localhost:${this.eden.port}${data.route}`, {
+      headers : Object.assign({}, socket.request.headers, {
+        Accept : 'application/json',
+      }),
+      redirect : 'follow',
+    });
 
-      // Get controller
-      const controller = await this.eden.controller(endpoint.class);
+    // await text
+    socket.emit(data.id, await res.json());
+  }
 
-      // Set opts
-      const opts = {
-        args,
-        user,
-        socket,
-        sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
-      };
+  /**
+   * Emit to user
+   *
+   * @param {Object} data
+   */
+  user(data) {
+    // Check data.to
+    if (!data.to || !this.__connections.users.has(data.to)) return;
 
-      // Hook opts
-      await this.eden.hook('socket.endpoint.opts', opts);
+    // send to all
+    this.__connections.users.get(data.to).forEach((socketID) => {
+      // get socket
+      const socket = this.__connections.sockets.get(socketID);
 
-      // Run function
-      controller[endpoint.fn](...args, opts);
+      // check socket
+      if (!socket) return;
+
+      // Emit to socket
+      socket.emit(data.type, ...data.args);
+
+      // Emit to eden
+      this.eden.emit('socket.user.sent', ...data.args);
     });
   }
 
   /**
-   * Publishes socket connection count
+   * Emit to user
    *
-   * @param {Integer} add
-   *
-   * @private
+   * @param {Object} data
    */
-  async _connection(add) {
-    // Publish to eden
-    let connections = await this.eden.get('socket.connections');
+  session(data) {
+    // Check data.to
+    if (!data.session || !this.__connections.sessions.has(data.session)) return;
 
-    // Add or subtract
-    if (add) connections++;
-    if (!add) connections--;
+    // send to all
+    this.__connections.sessions.get(data.session).forEach((socketID) => {
+      // get socket
+      const socket = this.__connections.sockets.get(socketID);
 
-    // Check if < 0
-    if (connections < 0) connections = 0;
+      // check socket
+      if (!socket) return;
 
-    // Emit to channel
-    this.eden.emit('socket.connections', connections, true);
+      // Emit to socket
+      socket.emit(data.type, ...data.args);
 
-    // Update cache
-    await this.eden.set('socket.connections', connections);
+      // Emit to eden
+      this.eden.emit('socket.session.sent', ...data.args);
+    });
   }
 }
 
