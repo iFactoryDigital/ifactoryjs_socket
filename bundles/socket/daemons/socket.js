@@ -338,11 +338,24 @@ class SocketDaemon extends Daemon {
     // Reload user
     if (user) await user.refresh();
 
+    // create headers
+    const headers = Object.assign({}, {
+      host   : socket.request.headers.host,
+      origin : socket.request.headers.origin,
+      cookie : socket.request.headers.cookie,
+
+      'user-agent'      : socket.request.headers['user-agent'],
+      'accept-encoding' : socket.request.headers['accept-encoding'],
+      'accept-language' : socket.request.headers['accept-language'],
+      'x-forwarded-for' : socket.request.headers['x-forwarded-for'],
+    }, {
+      Accept : 'application/json',
+    });
+
     // get headers
-    const res = await fetch(`http://localhost:${this.eden.port}${data.route}`, {
-      headers : Object.assign({}, socket.request.headers, {
-        Accept : 'application/json',
-      }),
+    const res = await fetch(`http://${config.get('host')}:${this.eden.port}${data.route}`, {
+      headers,
+
       redirect : 'follow',
     });
 
