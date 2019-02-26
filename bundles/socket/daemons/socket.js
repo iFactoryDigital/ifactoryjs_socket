@@ -29,8 +29,8 @@ class SocketDaemon extends Daemon {
     // Run super
     super();
 
-    // Don't run on main thread if no server is applicable
-    if (!this.eden.express) return;
+    // Don't run on router thread if no server is applicable
+    if (!this.eden.router) return;
 
     // Bind variables
     this.__socketIO = false;
@@ -73,7 +73,7 @@ class SocketDaemon extends Daemon {
    */
   build() {
     // Set io
-    this.__socketIO = socketio(this.eden.router._server);
+    this.__socketIO = socketio(this.eden.router.server);
 
     // Setup redis conn
     const conn = config.get('redis') || {};
@@ -295,16 +295,16 @@ class SocketDaemon extends Daemon {
     // Loop endpoints
     const matched = calls.filter((call) => {
       // Remove call
-      return data.name === call.name;
+      return data.name === call.path;
     });
 
     // Loop matched
     matched.forEach(async (call) => {
       // check ACL
-      if (!await aclHelper.validate(user, call.acl)) return;
+      if (call.acl && !await aclHelper.validate(user, call.acl)) return;
 
       // get controller
-      const controller = await this.eden.controller(call.class);
+      const controller = await this.eden.controller(call.file);
 
       // Set opts
       const opts = {
