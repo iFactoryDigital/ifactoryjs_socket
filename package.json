@@ -1,10 +1,10 @@
 {
   "name": "@edenjs/socket",
   "description": "",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "dependencies": {
     "connect-redis": "^3.4.0",
-    "cookie-parser": "^1.4.3",
+    "cookie-parser": "^1.4.4",
     "express-session": "^1.15.6",
     "node-fetch": "^2.3.0",
     "passport.socketio": "^3.7.0",
@@ -30,11 +30,11 @@
   },
   "homepage": "https://github.com/eden-js/socket#readme",
   "devDependencies": {
-    "eslint": "^5.13.0",
     "@edenjs/eslint-config-eden": "^2.0.14",
+    "eslint": "^5.15.1",
     "eslint-config-airbnb": "^17.1.0",
     "eslint-plugin-import": "^2.16.0",
-    "eslint-plugin-jsx-a11y": "^6.2.0",
+    "eslint-plugin-jsx-a11y": "^6.2.1",
     "eslint-plugin-react": "^7.12.4"
   }
 }

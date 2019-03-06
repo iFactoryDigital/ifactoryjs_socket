@@ -145,7 +145,8 @@ class SocketStore {
       this.__userID = user ? (user.get ? user.get('id') : user.id) : null;
 
       // reset connection
-      return this.socket.disconnect() && this.socket.connect();
+      this.socket.disconnect();
+      this.socket.connect();
     }
   }
 }
