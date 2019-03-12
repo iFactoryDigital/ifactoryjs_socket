@@ -3,7 +3,7 @@
   "description": "",
   "version": "2.2.1",
   "dependencies": {
-    "connect-redis": "^3.4.0",
+    "@edenjs/session-store": "0.0.1",
     "cookie-parser": "^1.4.4",
     "express-session": "^1.15.6",
     "node-fetch": "^2.3.0",

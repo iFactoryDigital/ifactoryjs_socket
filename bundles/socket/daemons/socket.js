@@ -7,7 +7,7 @@ const Daemon       = require('daemon');
 const session      = require('express-session');
 const passport     = require('passport.socketio');
 const socketio     = require('socket.io');
-const RedisStore   = require('connect-redis')(session);
+const SessionStore = require('@edenjs/session-store');
 const cookieParser = require('cookie-parser');
 
 // Require cache dependencies
@@ -75,16 +75,15 @@ class SocketDaemon extends Daemon {
     // Set io
     this.__socketIO = socketio(this.eden.router.server);
 
-    // Setup redis conn
-    const conn = config.get('redis') || {};
-
-    // Add key
-    conn.key = `${config.get('domain')}.socket`;
+    // initialize store
+    SessionStore.initialize(session);
 
     // Use passport auth
     this.__socketIO.use(passport.authorize({
-      key    : config.get('session.key') || 'eden.session.id',
-      store  : new RedisStore(config.get('redis')),
+      key   : config.get('session.key') || 'eden.session.id',
+      store : new SessionStore({
+        eden : this.eden,
+      }),
       secret : config.get('secret'),
       fail   : (data, message, critical, accept) => {
         // Accept connection
