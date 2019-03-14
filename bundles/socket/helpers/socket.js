@@ -1,11 +1,11 @@
 
 // Require dependencies
-const helper = require('helper');
+const Helper = require('helper');
 
 /**
  * Build socket helper class
  */
-class socket extends helper {
+class SocketHelper extends Helper {
   /**
    * Construct socket helper class
    */
@@ -43,10 +43,10 @@ class socket extends helper {
    * @param  {String}  type
    * @param  {*}       data
    */
-  user(User, type, ...args) {
+  user(user, type, ...args) {
     // Emit to socket
     this.eden.emit('socket.user', {
-      to   : (User ? User.get('_id').toString() : true),
+      to   : (user ? user.get('_id').toString() : true),
       type,
       args,
     }, true);
@@ -87,6 +87,6 @@ class socket extends helper {
 /**
  * Export socket helper
  *
- * @type {socket}
+ * @type {SocketHelper}
  */
-exports = module.exports = new socket();
+exports = module.exports = new SocketHelper();

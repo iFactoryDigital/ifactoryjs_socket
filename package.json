@@ -1,7 +1,7 @@
 {
   "name": "@edenjs/socket",
   "description": "",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "dependencies": {
     "@edenjs/session-store": "0.0.1",
     "cookie-parser": "^1.4.4",
