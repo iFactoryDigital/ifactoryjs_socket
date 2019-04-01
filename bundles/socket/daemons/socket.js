@@ -51,10 +51,10 @@ class SocketDaemon extends Daemon {
     this.countConnections = this.countConnections.bind(this);
 
     // Bind private methods
-    this.call = this.call.bind(this);
     this.emit = this.emit.bind(this);
     this.user = this.user.bind(this);
-    this.route = this.route.bind(this);
+    this.onCall = this.onCall.bind(this);
+    this.onRoute = this.onRoute.bind(this);
     this.session = this.session.bind(this);
 
     // Build
@@ -141,7 +141,7 @@ class SocketDaemon extends Daemon {
 
     // log connected
     this.logger.log('debug', `client ${IDs.socketID} - ${user ? await user.name() : 'anonymous'} connected`, {
-      class : 'socket',
+      class : this.constructor.name,
     });
 
     // set socket to map
@@ -170,13 +170,13 @@ class SocketDaemon extends Daemon {
     // On call
     socket.on('eden.call', (data) => {
       // Call data
-      this.call(data, socket, user);
+      this.onCall(data, socket, user);
     });
 
     // On call
     socket.on('eden.route', (route) => {
       // Call data
-      this.route(route, socket, user);
+      this.onRoute(route, socket, user);
     });
 
     // add connection
@@ -203,7 +203,7 @@ class SocketDaemon extends Daemon {
 
     // Log disconnected
     this.logger.log('debug', `client ${IDs.socketID} - ${user ? await user.name() : 'anonymous'} disconnected`, {
-      class : 'socket',
+      class : this.constructor.name,
     });
 
     // selete socket
@@ -287,7 +287,7 @@ class SocketDaemon extends Daemon {
    * @param  {socket} socket
    * @param  {User}   user
    */
-  async call(data, socket, user) {
+  async onCall(data, socket, user) {
     // Reload user
     if (user) await user.refresh();
 
@@ -333,7 +333,7 @@ class SocketDaemon extends Daemon {
    * @param  {socket} socket
    * @param  {User}   user
    */
-  async route(data, socket, user) {
+  async onRoute(data, socket, user) {
     // Reload user
     if (user) await user.refresh();
 
