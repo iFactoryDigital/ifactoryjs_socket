@@ -5,7 +5,6 @@ const fetch        = require('node-fetch');
 const config       = require('config');
 const Daemon       = require('daemon');
 const session      = require('express-session');
-const passport     = require('passport.socketio');
 const socketio     = require('socket.io');
 const SessionStore = require('@edenjs/session-store');
 const cookieParser = require('cookie-parser');
@@ -13,13 +12,17 @@ const cookieParser = require('cookie-parser');
 // Require cache dependencies
 const calls = cache('calls');
 
+// require models
+const User = model('user');
+
 // Require helpers
 const aclHelper = helper('user/acl');
 
 /**
  * Build socket daemon
  *
- * @express
+ * @cluster front
+ * @cluster socket
  */
 class SocketDaemon extends Daemon {
   /**
@@ -75,30 +78,46 @@ class SocketDaemon extends Daemon {
     // Set io
     this.__socketIO = socketio(this.eden.router.server);
 
+    // Listen for connection
+    this.__socketIO.on('connection', this.onConnect);
+
     // initialize store
     SessionStore.initialize(session);
 
-    // Use passport auth
-    this.__socketIO.use(passport.authorize({
-      key   : config.get('session.key') || 'eden.session.id',
-      store : new SessionStore({
-        eden : this.eden,
-      }),
-      secret : config.get('secret'),
-      fail   : (data, message, critical, accept) => {
-        // Accept connection
-        accept(null, false);
-      },
-      success : (data, accept) => {
-        // Accept
-        accept(null, true);
-      },
+    // socket use
+    this.__sessionStore = new SessionStore({
+      eden : this.eden,
+    });
+    this.__socketIO.use(async (socket, next) => {
+      // parser
+      const parser = cookieParser(config.get('secret'), {
+        secret : config.get('secret'),
+      });
 
-      cookieParser,
-    }));
+      // await cookies parsed
+      await new Promise(resolve => parser(socket.request, null, resolve));
 
-    // Listen for connection
-    this.__socketIO.on('connection', this.onConnect);
+      // set session id
+      socket.request.sessionID = socket.request.cookies[config.get('session.key') || 'eden.session.id'] || socket.request.signedCookies[config.get('session.key') || 'eden.session.id'];
+
+      // session store
+      const userSession = await new Promise((resolve) => {
+        // get then resolve
+        this.__sessionStore.get(socket.request.sessionID, (err, data) => {
+          // resolve data
+          return resolve(data);
+        })
+      });
+
+      // check passport
+      if (userSession && userSession.passport && userSession.passport.user) {
+        // set current user
+        socket.request.user = await User.findById(userSession.passport.user);
+        socket.request.session = userSession;
+      }
+      // run next
+      next();
+    });
 
     // Listen for global event for emit
     this.eden.on('socket.emit', this.emit, true);
@@ -130,13 +149,13 @@ class SocketDaemon extends Daemon {
     socket.on('disconnect', () => this.onDisconnect(socket));
 
     // check user
-    const user = (!(socket.request.user || {}).logged_in) ? false : socket.request.user;
+    const { user } = socket.request;
 
     // set ids
     const IDs = {
       userID    : user ? user.get('_id').toString() : null,
       socketID  : uuid(),
-      sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
+      sessionID : socket.request.sessionID,
     };
 
     // log connected
@@ -166,6 +185,10 @@ class SocketDaemon extends Daemon {
       id  : IDs.socketID,
       key : IDs.sessionID,
     }, true);
+
+    // join rooms
+    if (user) socket.join(`user.${user.get('_id')}`);
+    socket.join(`session.${IDs.sessionID}`);
 
     // On call
     socket.on('eden.call', (data) => {
@@ -198,7 +221,7 @@ class SocketDaemon extends Daemon {
     const IDs = {
       userID    : user ? user.get('_id').toString() : null,
       socketID  : uuid(),
-      sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
+      sessionID : socket.request.sessionID,
     };
 
     // Log disconnected
@@ -312,7 +335,7 @@ class SocketDaemon extends Daemon {
 
         args      : data.args,
         call      : data.name,
-        sessionID : socket.request.cookie[config.get('session.key') || 'eden.session.id'],
+        sessionID : socket.request.cookies[config.get('session.key') || 'eden.session.id'],
       };
 
       // Hook opts
@@ -367,24 +390,17 @@ class SocketDaemon extends Daemon {
    *
    * @param {Object} data
    */
-  user(data) {
+  async user(data) {
     // Check data.to
-    if (!data.to || !this.__connections.users.has(data.to)) return;
+    const done = await this.emit(Object.assign({
+      room : `user.${data.to}`,
+    }, data));
 
-    // send to all
-    this.__connections.users.get(data.to).forEach((socketID) => {
-      // get socket
-      const socket = this.__connections.sockets.get(socketID);
+    // Emit to eden
+    this.eden.emit('socket.user.sent', ...data.args);
 
-      // check socket
-      if (!socket) return;
-
-      // Emit to socket
-      socket.emit(data.type, ...data.args);
-
-      // Emit to eden
-      this.eden.emit('socket.user.sent', ...data.args);
-    });
+    // return done
+    return done;
   }
 
   /**
@@ -392,24 +408,17 @@ class SocketDaemon extends Daemon {
    *
    * @param {Object} data
    */
-  session(data) {
+  async session(data) {
     // Check data.to
-    if (!data.session || !this.__connections.sessions.has(data.session)) return;
+    const done = await this.emit(Object.assign({
+      room : `session.${data.session}`,
+    }, data));
 
-    // send to all
-    this.__connections.sessions.get(data.session).forEach((socketID) => {
-      // get socket
-      const socket = this.__connections.sockets.get(socketID);
+    // Emit to eden
+    this.eden.emit('socket.session.sent', ...data.args);
 
-      // check socket
-      if (!socket) return;
-
-      // Emit to socket
-      socket.emit(data.type, ...data.args);
-
-      // Emit to eden
-      this.eden.emit('socket.session.sent', ...data.args);
-    });
+    // return done
+    return done;
   }
 }
 

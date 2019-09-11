@@ -5,12 +5,11 @@
   "dependencies": {
     "@edenjs/session-store": "0.0.2",
     "cookie-parser": "^1.4.4",
-    "express-session": "^1.15.6",
-    "node-fetch": "^2.3.0",
-    "passport.socketio": "^3.7.0",
+    "express-session": "^1.16.2",
+    "node-fetch": "^2.6.0",
     "socket.io": "^2.2.0",
     "socket.io-client": "^2.2.0",
-    "uuid": "^3.3.2"
+    "uuid": "^3.3.3"
   },
   "engines": {
     "node": ">= 8.0.0"
@@ -31,10 +30,12 @@
   "homepage": "https://github.com/eden-js/socket#readme",
   "devDependencies": {
     "@edenjs/eslint-config-eden": "^2.0.14",
-    "eslint": "^5.15.1",
-    "eslint-config-airbnb": "^17.1.0",
-    "eslint-plugin-import": "^2.16.0",
-    "eslint-plugin-jsx-a11y": "^6.2.1",
-    "eslint-plugin-react": "^7.12.4"
+    "eslint": "^6.3.0",
+    "eslint-config-airbnb": "^18.0.1",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-jsx-a11y": "^6.2.3",
+    "eslint-plugin-react": "^7.14.3",
+    "install": "^0.13.0",
+    "npm": "^6.11.3"
   }
 }
