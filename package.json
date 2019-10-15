@@ -1,9 +1,9 @@
 {
-  "name": "@edenjs/socket",
+  "name": "@ifactoryjs/socket",
   "description": "",
   "version": "2.4.0",
   "dependencies": {
-    "@edenjs/session-store": "0.0.2",
+    "@ifactoryjs/session-store": "github:ifactorydigital/ifactoryjs_session-store",
     "cookie-parser": "^1.4.4",
     "express-session": "^1.16.2",
     "node-fetch": "^2.6.0",
@@ -20,14 +20,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eden-js/socket.git"
+    "url": "git+https://github.com/ifactorydigital/ifactoryjs_socket.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/eden-js/socket/issues"
+    "url": "https://github.com/ifactorydigital/ifactoryjs_socket/issues"
   },
-  "homepage": "https://github.com/eden-js/socket#readme",
+  "homepage": "https://github.com/ifactorydigital/ifactoryjs_socket#readme",
   "devDependencies": {
     "@edenjs/eslint-config-eden": "^2.0.14",
     "eslint": "^6.3.0",

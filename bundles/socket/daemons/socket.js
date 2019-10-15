@@ -6,7 +6,7 @@ const config       = require('config');
 const Daemon       = require('daemon');
 const session      = require('express-session');
 const socketio     = require('socket.io');
-const SessionStore = require('@edenjs/session-store');
+const SessionStore = require('@ifactoryjs/session-store');
 const cookieParser = require('cookie-parser');
 
 // Require cache dependencies
